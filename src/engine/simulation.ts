@@ -2,7 +2,7 @@ import { EventQueue } from './eventQueue.js';
 import { LOSS_POINT, Link, type LinkConfig } from './link.js';
 import { computeMetrics, type Metrics } from './metrics.js';
 import type { LogEntry, LogKind, Packet, ProtocolLogKind } from './packet.js';
-import { mulberry32 } from './prng.js';
+import { hashInts, mulberry32 } from './prng.js';
 
 // Only network and simulation settings. Protocol settings (packet count, window,
 // timeout) go to the protocol factories, because the simulation never reads them.
@@ -70,15 +70,22 @@ export class Simulation {
     const entries: LogEntry[] = [];
     let clock = 0;
 
-    // Each link gets its own random stream, derived from the one run seed.
-    // With a shared stream, every extra ACK would shift which random numbers the
-    // DATA link sees next, so the two directions would not be independent.
-    const seedRng = mulberry32(this.config.seed);
-    const nextSeed = (): number => Math.floor(seedRng() * 0x100000000);
     const forwardConfig = this.config.linkConfig;
     const reverseConfig = this.config.reverseLinkConfig ?? this.config.linkConfig;
-    const forwardLink = new Link(forwardConfig, mulberry32(nextSeed())); // sender → receiver
-    const reverseLink = new Link(reverseConfig, mulberry32(nextSeed())); // receiver → sender
+    const forwardLink = new Link(forwardConfig); // sender → receiver
+    const reverseLink = new Link(reverseConfig); // receiver → sender
+
+    // Per-transmission randomness: the k-th transmission of seq s in one direction
+    // always gets the same fate, no matter the window size, timeout or protocol.
+    // A single shared random stream would hand out numbers in sending order, so
+    // changing a setting would quietly give every packet different luck.
+    const attempts = new Map<string, number>();
+    const fateRng = (direction: number, seq: number): (() => number) => {
+      const key = `${direction}:${seq}`;
+      const attempt = attempts.get(key) ?? 0;
+      attempts.set(key, attempt + 1);
+      return mulberry32(hashInts(this.config.seed, direction, seq, attempt));
+    };
 
     const addLog = (kind: LogKind, packet: Packet, wireId?: number): void => {
       entries.push(
@@ -109,6 +116,7 @@ export class Simulation {
     // Puts one packet on a link and schedules what happens to each copy.
     // Shared by both directions so DATA and ACKs are logged in exactly the same way.
     const transmit = (
+      direction: number,
       link: Link,
       linkConfig: LinkConfig,
       packet: Packet,
@@ -119,7 +127,7 @@ export class Simulation {
       const wireId = nextWireId++;
       addLog(reason, packet, wireId);
 
-      const result = link.transmit(packet);
+      const result = link.transmit(fateRng(direction, packet.seq));
       if (result.dropped) {
         queue.push(clock + linkConfig.baseDelayMs * LOSS_POINT, () =>
           addLog('drop', packet, wireId),
@@ -140,7 +148,7 @@ export class Simulation {
 
     const senderCtx: EndpointCtx = {
       send(packet, reason = 'send') {
-        transmit(forwardLink, forwardConfig, packet, reason, 'data-received', onReceiverData);
+        transmit(0, forwardLink, forwardConfig, packet, reason, 'data-received', onReceiverData);
       },
       setTimer: schedule,
       cancelTimer: (h) => {
@@ -152,7 +160,7 @@ export class Simulation {
 
     const receiverCtx: EndpointCtx = {
       send(packet, reason = 'send') {
-        transmit(reverseLink, reverseConfig, packet, reason, 'ack-received', onSenderAck);
+        transmit(1, reverseLink, reverseConfig, packet, reason, 'ack-received', onSenderAck);
       },
       setTimer: schedule,
       cancelTimer: (h) => {

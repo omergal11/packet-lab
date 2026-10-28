@@ -55,7 +55,10 @@ export function findBaseline(scenario: Scenario, grid: Grid): ScoredRun {
   for (const windowSize of grid.windowSizes) {
     for (const timeoutMs of grid.timeoutsMs) {
       const run = runSelectiveRepeat(scenario, { windowSize, timeoutMs });
-      // Strictly greater: on a tie the first (smaller) setting wins, so the result is stable.
+      // Strictly greater: on a tie the first (smaller) setting wins. With per-packet
+      // randomness ties are common — once a retransmission decides the finish time,
+      // extra window slots change nothing — so the baseline reports the smallest
+      // window that reaches the best score.
       if (best === null || run.score > best.score) best = run;
     }
   }

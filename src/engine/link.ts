@@ -1,5 +1,3 @@
-import type { Packet } from './packet.js';
-
 export interface LinkConfig {
   lossRate: number; // 0–1: probability a packet is dropped entirely
   baseDelayMs: number; // fixed one-way propagation delay in ms
@@ -24,35 +22,33 @@ export interface TransmitResult {
 }
 
 // Link models a one-directional lossy channel.
-// All randomness comes from the injected `rng` so that the same seed always gives
-// the same sequence of drops/delays — which is what makes runs reproducible.
+// The caller passes the random source for each transmission. The Simulation gives
+// every (direction, seq, attempt) its own source, so a packet's fate does not depend
+// on what else was sent before it.
 export class Link {
-  constructor(
-    private readonly config: LinkConfig,
-    private readonly rng: () => number,
-  ) {}
+  constructor(private readonly config: LinkConfig) {}
 
-  transmit(_packet: Packet): TransmitResult {
-    if (this.rng() < this.config.lossRate) {
+  transmit(rng: () => number): TransmitResult {
+    if (rng() < this.config.lossRate) {
       return { dropped: true, delays: [] };
     }
 
-    const delays: number[] = [this.computeDelay()];
+    const delays: number[] = [this.computeDelay(rng)];
 
     // Duplicate: queue a second copy with its own independent delay.
-    if (this.rng() < this.config.duplicateRate) {
-      delays.push(this.computeDelay());
+    if (rng() < this.config.duplicateRate) {
+      delays.push(this.computeDelay(rng));
     }
 
     return { dropped: false, delays };
   }
 
-  private computeDelay(): number {
-    const jitter = this.rng() * this.config.jitterMs;
+  private computeDelay(rng: () => number): number {
+    const jitter = rng() * this.config.jitterMs;
     // Jitter alone can reorder packets sent close together; reorderRate makes it
     // happen on purpose, independent of how far apart the packets were sent.
     const reorderExtra =
-      this.rng() < this.config.reorderRate ? this.config.baseDelayMs * REORDER_EXTRA_DELAYS : 0;
+      rng() < this.config.reorderRate ? this.config.baseDelayMs * REORDER_EXTRA_DELAYS : 0;
     return this.config.baseDelayMs + jitter + reorderExtra;
   }
 }
