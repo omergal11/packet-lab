@@ -3,9 +3,105 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PacketLab — debug</title>
+    <title>PacketLab</title>
   </head>
   <body>
+    <header class="page-header">
+      <h1 id="level-name">PacketLab</h1>
+      <p id="level-goal" class="goal"></p>
+      <p class="seed">
+        Seed <strong id="seed"></strong> — the same seed and settings always replay the same run.
+      </p>
+    </header>
+
+    <main>
+      <section class="panel" aria-label="Link view">
+        <svg
+          id="link-view"
+          viewBox="0 0 1000 250"
+          role="img"
+          aria-label="Packets travelling between sender and receiver"
+        ></svg>
+      </section>
+
+      <section class="panel" aria-label="Packet states">
+        <svg
+          id="packet-strip"
+          viewBox="0 0 1000 110"
+          role="img"
+          aria-label="State of each sequence number"
+        ></svg>
+        <p class="legend">
+          <span class="chip chip-acked">✓</span> acked <span class="chip chip-in-flight">→</span> in
+          flight <span class="chip chip-lost">✕</span> lost (DATA or its ACK; waiting for timeout)
+          <span class="chip chip-not-sent">–</span> not sent yet
+          <span class="legend-note">Dashed packet = retransmission</span>
+        </p>
+      </section>
+
+      <section class="panel controls" aria-label="Controls">
+        <div class="settings">
+          <label>
+            Window size <output id="window-value"></output>
+            <input id="window" type="range" />
+          </label>
+          <label>
+            Timeout <output id="timeout-value"></output>
+            <input id="timeout" type="range" />
+          </label>
+          <button id="run" class="primary">Run</button>
+        </div>
+        <div class="playback">
+          <button id="play">Play</button>
+          <button id="step">Step</button>
+          <label>
+            Speed
+            <select id="speed">
+              <option value="0.1">0.1×</option>
+              <option value="0.25" selected>0.25×</option>
+              <option value="0.5">0.5×</option>
+              <option value="1">1×</option>
+              <option value="2">2×</option>
+            </select>
+          </label>
+          <span class="clock">t = <span id="clock"></span></span>
+        </div>
+      </section>
+
+      <section class="panel metrics" aria-label="Results">
+        <dl class="stats">
+          <div>
+            <dt>Delivered</dt>
+            <dd id="m-delivered"></dd>
+          </div>
+          <div>
+            <dt>Virtual time</dt>
+            <dd id="m-time"></dd>
+          </div>
+          <div>
+            <dt>Efficiency</dt>
+            <dd id="m-efficiency"></dd>
+          </div>
+        </dl>
+        <div class="compare">
+          <h2>
+            Score <span class="hint">(packets per second × efficiency — higher is better)</span>
+          </h2>
+          <div class="bar-row">
+            <span class="bar-label">You</span>
+            <div class="bar-track"><div id="bar-you" class="bar bar-you"></div></div>
+            <span id="score-you" class="bar-value"></span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-label">Baseline</span>
+            <div class="bar-track"><div id="bar-baseline" class="bar bar-baseline"></div></div>
+            <span id="score-baseline" class="bar-value"></span>
+          </div>
+          <p id="verdict" class="verdict" aria-live="polite"></p>
+        </div>
+      </section>
+    </main>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

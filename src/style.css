@@ -1,0 +1,355 @@
+/* One success color, one loss color, everything else neutral gray.
+   The pair was checked for color-blind separation, and every state also carries a
+   text marker, so nothing depends on color alone. */
+:root {
+  --bg: #f4f5f6;
+  --panel: #ffffff;
+  --ink: #1f2328;
+  --muted: #5f6670;
+  --line: #d6dadf;
+  --node: #eef0f2;
+  --in-flight: #4b5563;
+  --success: #1d6b57;
+  --loss: #e4572e;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+}
+
+.page-header,
+main {
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+.page-header {
+  padding-top: 20px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+}
+
+h2 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.goal {
+  margin: 0;
+}
+
+.seed,
+.hint,
+.legend-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: normal;
+}
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+}
+
+svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ---------- Link view ---------- */
+.node {
+  fill: var(--node);
+  stroke: var(--line);
+}
+
+.node-label {
+  font-size: 18px;
+  font-weight: 600;
+  text-anchor: middle;
+  fill: var(--ink);
+}
+
+.lane {
+  stroke: var(--line);
+  stroke-width: 2;
+  stroke-dasharray: 6 6;
+}
+
+.lane-label {
+  font-size: 14px;
+  text-anchor: middle;
+  fill: var(--muted);
+}
+
+.pkt rect {
+  stroke-width: 2;
+}
+
+.pkt-data rect {
+  fill: var(--in-flight);
+  stroke: var(--in-flight);
+}
+
+.pkt-ack rect {
+  fill: var(--panel);
+  stroke: var(--in-flight);
+}
+
+.pkt-retransmit rect {
+  stroke-dasharray: 4 3;
+  stroke: var(--ink);
+}
+
+.pkt-lost rect {
+  fill: var(--loss);
+  stroke: var(--loss);
+}
+
+.pkt-text {
+  font-size: 13px;
+  font-weight: 600;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.pkt-data .pkt-text,
+.pkt-lost .pkt-text {
+  fill: #ffffff;
+}
+
+.pkt-ack .pkt-text {
+  fill: var(--ink);
+}
+
+.pkt-caption {
+  font-size: 12px;
+  text-anchor: middle;
+  fill: var(--ink);
+}
+
+/* ---------- Packet strip ---------- */
+.cell rect {
+  stroke-width: 1.5;
+}
+
+.cell text {
+  text-anchor: middle;
+  fill: #ffffff;
+}
+
+.cell-seq {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cell-marker {
+  font-size: 16px;
+}
+
+.cell-acked rect {
+  fill: var(--success);
+  stroke: var(--success);
+}
+
+.cell-in-flight rect {
+  fill: var(--in-flight);
+  stroke: var(--in-flight);
+}
+
+.cell-lost rect {
+  fill: var(--loss);
+  stroke: var(--loss);
+}
+
+.cell-not-sent rect {
+  fill: var(--panel);
+  stroke: var(--line);
+}
+
+.cell-not-sent text {
+  fill: var(--muted);
+}
+
+.window-bracket {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+}
+
+.window-label {
+  font-size: 13px;
+  text-anchor: middle;
+  fill: var(--ink);
+}
+
+.legend {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+}
+
+.legend-note {
+  margin-left: 12px;
+}
+
+.chip {
+  display: inline-block;
+  width: 1.4em;
+  line-height: 1.4em;
+  text-align: center;
+  border-radius: 3px;
+  color: #ffffff;
+  margin-left: 8px;
+}
+
+.chip-acked {
+  background: var(--success);
+}
+
+.chip-in-flight {
+  background: var(--in-flight);
+}
+
+.chip-lost {
+  background: var(--loss);
+}
+
+.chip-not-sent {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+/* ---------- Controls ---------- */
+.settings,
+.playback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+
+.playback {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+  flex: 1;
+}
+
+output {
+  font-weight: 600;
+}
+
+input[type='range'] {
+  accent-color: var(--ink);
+}
+
+button,
+select {
+  font: inherit;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: #ffffff;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+.clock {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Metrics ---------- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.stats dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.stats dd {
+  margin: 2px 0 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-row {
+  display: grid;
+  grid-template-columns: 80px 1fr 60px;
+  align-items: center;
+  gap: 12px;
+  margin: 6px 0;
+}
+
+.bar-track {
+  height: 14px;
+}
+
+.bar {
+  height: 100%;
+  border-radius: 0 4px 4px 0;
+}
+
+.bar-you {
+  background: var(--ink);
+}
+
+.bar-baseline {
+  background: #9aa1aa;
+}
+
+.bar-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.verdict {
+  margin: 8px 0 0;
+}
