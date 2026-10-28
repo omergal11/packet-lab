@@ -20,7 +20,7 @@ function runSAW(
     reorderRate: 0,
     ...linkCfg,
   };
-  const sim = new Simulation({ seed, numPackets, timeoutMs, linkConfig, maxVirtualTimeMs });
+  const sim = new Simulation({ seed, linkConfig, maxVirtualTimeMs });
   return sim.run(
     (ctx, onDone) => new StopAndWaitSender(ctx, numPackets, timeoutMs, onDone),
     (ctx) => new StopAndWaitReceiver(ctx),
@@ -215,8 +215,6 @@ describe('Simulation — forward and reverse links', () => {
     };
     const sim = new Simulation({
       seed: 1,
-      numPackets: 200,
-      timeoutMs: 600,
       linkConfig,
       reverseLinkConfig: { ...linkConfig, lossRate: 0.5 },
     });
@@ -257,8 +255,6 @@ describe('Simulation — safety stop', () => {
   it('respects a custom maxVirtualTimeMs', () => {
     const sim = new Simulation({
       seed: 1,
-      numPackets: 4,
-      timeoutMs: 600,
       linkConfig: { lossRate: 1, baseDelayMs: 100, jitterMs: 0, duplicateRate: 0, reorderRate: 0 },
       maxVirtualTimeMs: 5000,
     });

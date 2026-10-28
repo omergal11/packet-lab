@@ -19,7 +19,7 @@ const runConfig = {
   linkConfig,
 };
 
-const sim = new Simulation(runConfig);
+const sim = new Simulation({ seed: runConfig.seed, linkConfig });
 const { log, metrics } = sim.run(
   (ctx, onDone) => new StopAndWaitSender(ctx, runConfig.numPackets, runConfig.timeoutMs, onDone),
   (ctx) => new StopAndWaitReceiver(ctx),

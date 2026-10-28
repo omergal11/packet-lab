@@ -4,10 +4,10 @@ import { computeMetrics, type Metrics } from './metrics.js';
 import type { LogEntry, LogKind, Packet, ProtocolLogKind } from './packet.js';
 import { mulberry32 } from './prng.js';
 
+// Only network and simulation settings. Protocol settings (packet count, window,
+// timeout) go to the protocol factories, because the simulation never reads them.
 export interface RunConfig {
   seed: number;
-  numPackets: number;
-  timeoutMs: number;
   linkConfig: LinkConfig; // sender → receiver (DATA)
   reverseLinkConfig?: LinkConfig; // receiver → sender (ACKs); defaults to linkConfig
   maxVirtualTimeMs?: number; // safety stop; defaults to DEFAULT_MAX_VIRTUAL_TIME_MS

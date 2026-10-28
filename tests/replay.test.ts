@@ -11,7 +11,7 @@ import { NOISY_LINK, linkConfig } from './helpers.js';
 
 function timelineFor(link: Partial<LinkConfig>, windowSize = 4, numPackets = 8, seed = 1) {
   const timeoutMs = 600;
-  const sim = new Simulation({ seed, numPackets, timeoutMs, linkConfig: linkConfig(link) });
+  const sim = new Simulation({ seed, linkConfig: linkConfig(link) });
   const { log } = sim.run(
     (ctx, onDone) => new SelectiveRepeatSender(ctx, { numPackets, windowSize, timeoutMs }, onDone),
     (ctx) => new SelectiveRepeatReceiver(ctx, windowSize),

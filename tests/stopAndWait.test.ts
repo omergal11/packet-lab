@@ -5,7 +5,7 @@ import type { LinkConfig } from '../src/engine/link.js';
 import { NOISY_LINK, expectReliableDelivery, linkConfig } from './helpers.js';
 
 function run(seed: number, numPackets: number, link: Partial<LinkConfig>, timeoutMs = 600) {
-  const sim = new Simulation({ seed, numPackets, timeoutMs, linkConfig: linkConfig(link) });
+  const sim = new Simulation({ seed, linkConfig: linkConfig(link) });
   return sim.run(
     (ctx, onDone) => new StopAndWaitSender(ctx, numPackets, timeoutMs, onDone),
     (ctx) => new StopAndWaitReceiver(ctx),

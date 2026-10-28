@@ -18,7 +18,7 @@ interface Params {
 }
 
 function runSR({ seed, numPackets, windowSize, timeoutMs = 600, link = {} }: Params) {
-  const sim = new Simulation({ seed, numPackets, timeoutMs, linkConfig: linkConfig(link) });
+  const sim = new Simulation({ seed, linkConfig: linkConfig(link) });
   return sim.run(
     (ctx, onDone) => new SelectiveRepeatSender(ctx, { numPackets, windowSize, timeoutMs }, onDone),
     (ctx) => new SelectiveRepeatReceiver(ctx, windowSize),
@@ -98,12 +98,7 @@ describe('Selective Repeat — compared to Stop-and-Wait', () => {
     for (let seed = 1; seed <= 20; seed++) {
       const link = { lossRate: 0.2, jitterMs: 40 };
       const sr = runSR({ seed, numPackets: 10, windowSize: 1, link });
-      const sim = new Simulation({
-        seed,
-        numPackets: 10,
-        timeoutMs: 600,
-        linkConfig: linkConfig(link),
-      });
+      const sim = new Simulation({ seed, linkConfig: linkConfig(link) });
       const saw = sim.run(
         (ctx, onDone) => new StopAndWaitSender(ctx, 10, 600, onDone),
         (ctx) => new StopAndWaitReceiver(ctx),

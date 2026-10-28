@@ -24,7 +24,7 @@ export interface ScoredRun extends SimResult {
 export function runSelectiveRepeat(scenario: Scenario, settings: Settings): ScoredRun {
   const { numPackets } = scenario;
   const { windowSize, timeoutMs } = settings;
-  const sim = new Simulation({ ...scenario, timeoutMs });
+  const sim = new Simulation({ seed: scenario.seed, linkConfig: scenario.linkConfig });
   const result = sim.run(
     (ctx, onDone) => new SelectiveRepeatSender(ctx, { numPackets, windowSize, timeoutMs }, onDone),
     (ctx) => new SelectiveRepeatReceiver(ctx, windowSize),
