@@ -10,11 +10,21 @@ export interface RunConfig {
   timeoutMs: number;
   linkConfig: LinkConfig; // sender → receiver (DATA)
   reverseLinkConfig?: LinkConfig; // receiver → sender (ACKs); defaults to linkConfig
+  maxVirtualTimeMs?: number; // safety stop; defaults to DEFAULT_MAX_VIRTUAL_TIME_MS
+  maxEvents?: number; // safety stop; defaults to DEFAULT_MAX_EVENTS
 }
+
+// A run that can never finish (every packet lost) would otherwise loop forever and
+// freeze the page. Two limits, because they catch different bugs: the time limit stops
+// endless retransmissions, the event limit stops a loop where time never advances
+// (for example a zero timeout).
+export const DEFAULT_MAX_VIRTUAL_TIME_MS = 120_000;
+export const DEFAULT_MAX_EVENTS = 200_000;
 
 export interface SimResult {
   log: LogEntry[];
   metrics: Metrics;
+  completed: boolean; // false if a safety limit stopped the run before the sender finished
 }
 
 // The context given to each endpoint (sender or receiver).
@@ -164,13 +174,19 @@ export class Simulation {
 
     sender.start();
 
+    const maxTime = this.config.maxVirtualTimeMs ?? DEFAULT_MAX_VIRTUAL_TIME_MS;
+    const maxEvents = this.config.maxEvents ?? DEFAULT_MAX_EVENTS;
+    let eventCount = 0;
+
     // Event loop: always process the earliest event, advance the virtual clock to it.
     while (queue.size > 0 && !done) {
       const event = queue.pop()!;
+      if (event.time > maxTime || eventCount >= maxEvents) break;
+      eventCount++;
       clock = event.time;
       event.handler();
     }
 
-    return { log: entries, metrics: computeMetrics(entries) };
+    return { log: entries, metrics: computeMetrics(entries), completed: done };
   }
 }

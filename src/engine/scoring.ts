@@ -29,7 +29,8 @@ export function runSelectiveRepeat(scenario: Scenario, settings: Settings): Scor
     (ctx, onDone) => new SelectiveRepeatSender(ctx, { numPackets, windowSize, timeoutMs }, onDone),
     (ctx) => new SelectiveRepeatReceiver(ctx, windowSize),
   );
-  return { ...result, settings, score: score(result.metrics) };
+  // A run that hit the safety stop delivered nothing useful in the end: score 0.
+  return { ...result, settings, score: result.completed ? score(result.metrics) : 0 };
 }
 
 // One number to rank runs: useful packets per virtual second, scaled by efficiency.

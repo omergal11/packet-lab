@@ -54,3 +54,15 @@ describe('Level 1 baseline', () => {
     expect(findBaseline(level1.scenario, grid).settings).toEqual(baseline.settings);
   });
 });
+
+describe('runSelectiveRepeat — unfinished runs', () => {
+  it('scores 0 when every packet is lost', () => {
+    const scenario = {
+      ...level1.scenario,
+      linkConfig: { ...level1.scenario.linkConfig, lossRate: 1 },
+    };
+    const run = runSelectiveRepeat(scenario, { windowSize: 16, timeoutMs: 100 });
+    expect(run.completed).toBe(false);
+    expect(run.score).toBe(0);
+  });
+});

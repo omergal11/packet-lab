@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Simulation } from '../src/engine/simulation.js';
+import { DEFAULT_MAX_VIRTUAL_TIME_MS, Simulation } from '../src/engine/simulation.js';
 import { StopAndWaitReceiver, StopAndWaitSender } from '../src/engine/protocols/stopAndWait.js';
 import type { LinkConfig } from '../src/engine/link.js';
 import type { LogEntry } from '../src/engine/packet.js';
@@ -10,6 +10,7 @@ function runSAW(
   numPackets: number,
   linkCfg: Partial<LinkConfig> = {},
   timeoutMs = 600,
+  maxVirtualTimeMs?: number,
 ) {
   const linkConfig: LinkConfig = {
     lossRate: 0,
@@ -19,7 +20,7 @@ function runSAW(
     reorderRate: 0,
     ...linkCfg,
   };
-  const sim = new Simulation({ seed, numPackets, timeoutMs, linkConfig });
+  const sim = new Simulation({ seed, numPackets, timeoutMs, linkConfig, maxVirtualTimeMs });
   return sim.run(
     (ctx, onDone) => new StopAndWaitSender(ctx, numPackets, timeoutMs, onDone),
     (ctx) => new StopAndWaitReceiver(ctx),
@@ -193,7 +194,9 @@ describe('Simulation — forward and reverse links', () => {
   }
 
   it('both directions drop about lossRate of their packets over a long run', () => {
-    const { log } = runSAW(42, 15_000, { lossRate: 0.3, jitterMs: 50 });
+    // 15,000 packets take far longer than the default safety limit, so raise it.
+    const { log, completed } = runSAW(42, 15_000, { lossRate: 0.3, jitterMs: 50 }, 600, 1e9);
+    expect(completed).toBe(true);
     for (const kind of ['DATA', 'ACK'] as const) {
       const { sent, rate } = dropRate(log, kind);
       expect(sent).toBeGreaterThanOrEqual(10_000);
@@ -233,5 +236,43 @@ describe('Simulation — total time', () => {
     expect(lastDeliver.time).toBeCloseTo(500);
     expect(metrics.totalVirtualTimeMs).toBeCloseTo(600);
     expect(log.at(-1)!.kind).toBe('ack-received');
+  });
+});
+
+describe('Simulation — safety stop', () => {
+  it('a normal run completes', () => {
+    expect(runSAW(1, 4).completed).toBe(true);
+  });
+
+  it('lossRate=1 stops at the time limit instead of looping forever', () => {
+    const result = runSAW(1, 4, { lossRate: 1 });
+    expect(result.completed).toBe(false);
+    expect(result.metrics.delivered).toBe(0);
+    const lastTime = result.log.at(-1)!.time;
+    expect(lastTime).toBeLessThanOrEqual(DEFAULT_MAX_VIRTUAL_TIME_MS);
+    // It really did keep trying until close to the limit.
+    expect(lastTime).toBeGreaterThan(DEFAULT_MAX_VIRTUAL_TIME_MS - 1000);
+  });
+
+  it('respects a custom maxVirtualTimeMs', () => {
+    const sim = new Simulation({
+      seed: 1,
+      numPackets: 4,
+      timeoutMs: 600,
+      linkConfig: { lossRate: 1, baseDelayMs: 100, jitterMs: 0, duplicateRate: 0, reorderRate: 0 },
+      maxVirtualTimeMs: 5000,
+    });
+    const result = sim.run(
+      (ctx, onDone) => new StopAndWaitSender(ctx, 4, 600, onDone),
+      (ctx) => new StopAndWaitReceiver(ctx),
+    );
+    expect(result.completed).toBe(false);
+    expect(result.log.at(-1)!.time).toBeLessThanOrEqual(5000);
+  });
+
+  it('the event limit stops a run whose clock never advances (zero timeout)', () => {
+    const result = runSAW(1, 4, { lossRate: 1 }, 0);
+    expect(result.completed).toBe(false);
+    expect(result.log.at(-1)!.time).toBe(0);
   });
 });
