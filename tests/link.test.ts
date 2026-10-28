@@ -76,3 +76,17 @@ describe('Link', () => {
     }
   });
 });
+
+describe('Link — statistics', () => {
+  it('observed drop rate matches lossRate over 10,000 packets', () => {
+    const link = new Link(
+      { lossRate: 0.3, baseDelayMs: 100, jitterMs: 50, duplicateRate: 0.1, reorderRate: 0.1 },
+      mulberry32(12345),
+    );
+    const N = 10_000;
+    let drops = 0;
+    for (let i = 0; i < N; i++) if (link.transmit(pkt).dropped) drops++;
+    expect(drops / N).toBeGreaterThan(0.27);
+    expect(drops / N).toBeLessThan(0.33);
+  });
+});

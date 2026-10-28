@@ -8,7 +8,8 @@ export interface RunConfig {
   seed: number;
   numPackets: number;
   timeoutMs: number;
-  linkConfig: LinkConfig;
+  linkConfig: LinkConfig; // sender → receiver (DATA)
+  reverseLinkConfig?: LinkConfig; // receiver → sender (ACKs); defaults to linkConfig
 }
 
 export interface SimResult {
@@ -55,16 +56,19 @@ export class Simulation {
   constructor(private readonly config: RunConfig) {}
 
   run(senderFactory: SenderFactory, receiverFactory: ReceiverFactory): SimResult {
-    const rng = mulberry32(this.config.seed);
     const queue = new EventQueue();
     const entries: LogEntry[] = [];
     let clock = 0;
 
-    // Both links share the same RNG instance so all randomness flows from one seed.
+    // Each link gets its own random stream, derived from the one run seed.
+    // With a shared stream, every extra ACK would shift which random numbers the
+    // DATA link sees next, so the two directions would not be independent.
+    const seedRng = mulberry32(this.config.seed);
+    const nextSeed = (): number => Math.floor(seedRng() * 0x100000000);
     const forwardConfig = this.config.linkConfig;
-    const reverseConfig = this.config.linkConfig;
-    const forwardLink = new Link(forwardConfig, rng); // sender → receiver
-    const reverseLink = new Link(reverseConfig, rng); // receiver → sender
+    const reverseConfig = this.config.reverseLinkConfig ?? this.config.linkConfig;
+    const forwardLink = new Link(forwardConfig, mulberry32(nextSeed())); // sender → receiver
+    const reverseLink = new Link(reverseConfig, mulberry32(nextSeed())); // receiver → sender
 
     const addLog = (kind: LogKind, packet: Packet, wireId?: number): void => {
       entries.push(

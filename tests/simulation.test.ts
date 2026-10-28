@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { Simulation } from '../src/engine/simulation.js';
 import { StopAndWaitReceiver, StopAndWaitSender } from '../src/engine/protocols/stopAndWait.js';
 import type { LinkConfig } from '../src/engine/link.js';
+import type { LogEntry } from '../src/engine/packet.js';
 
 // Convenience wrapper so tests stay readable
 function runSAW(
@@ -178,5 +179,49 @@ describe('Simulation — link duplicates vs retransmissions', () => {
       expect(next.kind).toBe('retransmit');
       expect(next.packet.seq).toBe(e.packet.seq);
     });
+  });
+});
+
+describe('Simulation — forward and reverse links', () => {
+  // Drop rate seen inside a full run, per direction. Counts sender and receiver
+  // transmissions of one packet kind and how many of them the link dropped.
+  function dropRate(log: LogEntry[], kind: 'DATA' | 'ACK') {
+    const ofKind = log.filter((e) => e.packet.kind === kind);
+    const sent = ofKind.filter((e) => e.kind === 'send' || e.kind === 'retransmit').length;
+    const dropped = ofKind.filter((e) => e.kind === 'drop').length;
+    return { sent, rate: dropped / sent };
+  }
+
+  it('both directions drop about lossRate of their packets over a long run', () => {
+    const { log } = runSAW(42, 15_000, { lossRate: 0.3, jitterMs: 50 });
+    for (const kind of ['DATA', 'ACK'] as const) {
+      const { sent, rate } = dropRate(log, kind);
+      expect(sent).toBeGreaterThanOrEqual(10_000);
+      expect(rate).toBeGreaterThan(0.27);
+      expect(rate).toBeLessThan(0.33);
+    }
+  });
+
+  it('reverseLinkConfig configures the ACK direction separately', () => {
+    const linkConfig = {
+      lossRate: 0,
+      baseDelayMs: 100,
+      jitterMs: 0,
+      duplicateRate: 0,
+      reorderRate: 0,
+    };
+    const sim = new Simulation({
+      seed: 1,
+      numPackets: 200,
+      timeoutMs: 600,
+      linkConfig,
+      reverseLinkConfig: { ...linkConfig, lossRate: 0.5 },
+    });
+    const { log } = sim.run(
+      (ctx, onDone) => new StopAndWaitSender(ctx, 200, 600, onDone),
+      (ctx) => new StopAndWaitReceiver(ctx),
+    );
+    expect(dropRate(log, 'DATA').rate).toBe(0);
+    expect(dropRate(log, 'ACK').rate).toBeGreaterThan(0.3);
   });
 });
