@@ -48,7 +48,7 @@ src/
     prng.ts               Seeded PRNG (mulberry32) — same seed → same run
     eventQueue.ts         Min-heap priority queue ordered by virtual time
     packet.ts             Packet and LogEntry types
-    link.ts               One-directional lossy channel (drop, delay, duplicate)
+    link.ts               One-directional lossy channel (drop, delay, jitter, duplicate, reorder)
     simulation.ts         Virtual clock, event loop, EndpointCtx interface
     metrics.ts            Efficiency, throughput, and time from the event log
     protocols/

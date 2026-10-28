@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Link } from '../src/engine/link.js';
+import { Link, REORDER_EXTRA_DELAYS } from '../src/engine/link.js';
 import { mulberry32 } from '../src/engine/prng.js';
 import type { Packet } from '../src/engine/packet.js';
 
@@ -88,5 +88,39 @@ describe('Link — statistics', () => {
     for (let i = 0; i < N; i++) if (link.transmit(pkt).dropped) drops++;
     expect(drops / N).toBeGreaterThan(0.27);
     expect(drops / N).toBeLessThan(0.33);
+  });
+});
+
+describe('Link — reordering', () => {
+  // Sends `n` packets 10 ms apart and returns their seqs in arrival order.
+  function arrivalOrder(reorderRate: number, n = 50): number[] {
+    const link = new Link(
+      { lossRate: 0, baseDelayMs: 100, jitterMs: 5, duplicateRate: 0, reorderRate },
+      mulberry32(3),
+    );
+    const arrivals: { seq: number; at: number }[] = [];
+    for (let seq = 0; seq < n; seq++) {
+      const { delays } = link.transmit({ kind: 'DATA', seq });
+      arrivals.push({ seq, at: seq * 10 + delays[0]! });
+    }
+    return arrivals.sort((a, b) => a.at - b.at).map((a) => a.seq);
+  }
+
+  it('reorderRate=1 holds every copy back by REORDER_EXTRA_DELAYS base delays', () => {
+    const link = new Link(
+      { lossRate: 0, baseDelayMs: 100, jitterMs: 0, duplicateRate: 0, reorderRate: 1 },
+      mulberry32(1),
+    );
+    expect(link.transmit(pkt).delays[0]).toBeCloseTo(100 * (1 + REORDER_EXTRA_DELAYS));
+  });
+
+  it('with reorderRate=0 and jitter smaller than the send gap, order is preserved', () => {
+    const order = arrivalOrder(0);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+  });
+
+  it('with reorderRate > 0, packets arrive out of order', () => {
+    const order = arrivalOrder(0.2);
+    expect(order).not.toEqual([...order].sort((a, b) => a - b));
   });
 });
