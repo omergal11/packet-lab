@@ -23,7 +23,8 @@ export type ProtocolLogKind =
   | 'timeout' // a retransmission timer fired
   | 'deliver' // the receiver handed a packet to the application (in order, exactly once)
   | 'buffer' // the receiver stored an out-of-order packet for later delivery
-  | 'duplicate-dropped'; // the receiver discarded a packet it already had
+  | 'duplicate-dropped' // the receiver discarded a packet it already had
+  | 'out-of-order-dropped'; // the receiver discarded a packet that arrived too early (Go-Back-N)
 
 export type LogKind = WireLogKind | ProtocolLogKind;
 
