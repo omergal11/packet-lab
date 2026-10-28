@@ -38,7 +38,6 @@ export class StopAndWaitSender implements SenderDef {
 
   private transmitCurrent(): void {
     const pkt: Packet = { kind: 'DATA', seq: this.seq, payload: `data-${this.seq}` };
-    this.ctx.log('send', pkt);
     this.ctx.send(pkt);
     this.armTimeout(pkt);
   }
@@ -46,8 +45,7 @@ export class StopAndWaitSender implements SenderDef {
   private armTimeout(pkt: Packet): void {
     this.timer = this.ctx.setTimer(this.timeoutMs, () => {
       this.ctx.log('timeout', pkt);
-      this.ctx.log('retransmit', pkt);
-      this.ctx.send(pkt);
+      this.ctx.send(pkt, 'retransmit');
       this.armTimeout(pkt); // re-arm for the next potential timeout
     });
   }
@@ -64,19 +62,15 @@ export class StopAndWaitReceiver implements ReceiverDef {
     if (pkt.seq < this.expectedSeq) {
       // Duplicate of an already-delivered packet. Re-ACK it so the sender does not
       // keep retransmitting because its ACK was lost.
-      const ack: Packet = { kind: 'ACK', seq: pkt.seq };
       this.ctx.log('duplicate-dropped', pkt);
-      this.ctx.log('ack', ack);
-      this.ctx.send(ack);
+      this.ctx.send({ kind: 'ACK', seq: pkt.seq });
       return;
     }
 
     if (pkt.seq === this.expectedSeq) {
       this.ctx.log('deliver', pkt);
       this.expectedSeq++;
-      const ack: Packet = { kind: 'ACK', seq: pkt.seq };
-      this.ctx.log('ack', ack);
-      this.ctx.send(ack);
+      this.ctx.send({ kind: 'ACK', seq: pkt.seq });
     }
     // seq > expectedSeq: packet from the future — Stop-and-Wait never produces this,
     // but we silently ignore it for safety.

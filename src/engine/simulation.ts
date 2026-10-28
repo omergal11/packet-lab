@@ -1,7 +1,7 @@
 import { EventQueue } from './eventQueue.js';
-import { Link, type LinkConfig } from './link.js';
+import { LOSS_POINT, Link, type LinkConfig } from './link.js';
 import { computeMetrics, type Metrics } from './metrics.js';
-import type { LogEntry, LogKind, Packet } from './packet.js';
+import type { LogEntry, LogKind, Packet, ProtocolLogKind } from './packet.js';
 import { mulberry32 } from './prng.js';
 
 export interface RunConfig {
@@ -20,12 +20,16 @@ export interface SimResult {
 // Protocols interact with the simulation only through this interface —
 // they never touch the event queue or the clock directly.
 export interface EndpointCtx {
-  send(packet: Packet): void;
+  // The simulation logs the send itself, so protocols only say *why* they are sending.
+  send(packet: Packet, reason?: SendReason): void;
   setTimer(ms: number, callback: () => void): TimerHandle;
   cancelTimer(handle: TimerHandle): void;
   now(): number;
-  log(kind: LogKind, packet: Packet): void;
+  // Protocols may only log their own decisions; wire events are the simulation's job.
+  log(kind: ProtocolLogKind, packet: Packet): void;
 }
+
+export type SendReason = 'send' | 'retransmit';
 
 // Opaque cancel token. Setting `cancelled = true` prevents the callback from
 // firing even if the event is already in the queue (lazy cancellation).
@@ -57,11 +61,17 @@ export class Simulation {
     let clock = 0;
 
     // Both links share the same RNG instance so all randomness flows from one seed.
-    const forwardLink = new Link(this.config.linkConfig, rng); // sender → receiver
-    const reverseLink = new Link(this.config.linkConfig, rng); // receiver → sender
+    const forwardConfig = this.config.linkConfig;
+    const reverseConfig = this.config.linkConfig;
+    const forwardLink = new Link(forwardConfig, rng); // sender → receiver
+    const reverseLink = new Link(reverseConfig, rng); // receiver → sender
 
-    const addLog = (kind: LogKind, packet: Packet): void => {
-      entries.push({ time: clock, kind, packet });
+    const addLog = (kind: LogKind, packet: Packet, wireId?: number): void => {
+      entries.push(
+        wireId === undefined
+          ? { time: clock, kind, packet }
+          : { time: clock, kind, packet, wireId },
+      );
     };
 
     const schedule = (ms: number, callback: () => void): TimerHandle => {
@@ -80,16 +90,43 @@ export class Simulation {
     let onReceiverData: (p: Packet) => void = () => undefined;
     let onSenderAck: (p: Packet) => void = () => undefined;
 
+    let nextWireId = 0;
+
+    // Puts one packet on a link and schedules what happens to each copy.
+    // Shared by both directions so DATA and ACKs are logged in exactly the same way.
+    const transmit = (
+      link: Link,
+      linkConfig: LinkConfig,
+      packet: Packet,
+      reason: SendReason,
+      arrivalKind: 'data-received' | 'ack-received',
+      onArrive: (p: Packet) => void,
+    ): void => {
+      const wireId = nextWireId++;
+      addLog(reason, packet, wireId);
+
+      const result = link.transmit(packet);
+      if (result.dropped) {
+        queue.push(clock + linkConfig.baseDelayMs * LOSS_POINT, () =>
+          addLog('drop', packet, wireId),
+        );
+        return;
+      }
+
+      result.delays.forEach((delay, i) => {
+        // The first copy is the one the endpoint sent; any extra copy was made by the link.
+        const copyId = i === 0 ? wireId : nextWireId++;
+        if (i > 0) addLog('link-duplicate', packet, copyId);
+        queue.push(clock + delay, () => {
+          addLog(arrivalKind, packet, copyId);
+          onArrive(packet);
+        });
+      });
+    };
+
     const senderCtx: EndpointCtx = {
-      send(packet) {
-        const result = forwardLink.transmit(packet);
-        if (result.dropped) {
-          addLog('drop', packet);
-          return;
-        }
-        for (const delay of result.delays) {
-          queue.push(clock + delay, () => onReceiverData(packet));
-        }
+      send(packet, reason = 'send') {
+        transmit(forwardLink, forwardConfig, packet, reason, 'data-received', onReceiverData);
       },
       setTimer: schedule,
       cancelTimer: (h) => {
@@ -100,15 +137,8 @@ export class Simulation {
     };
 
     const receiverCtx: EndpointCtx = {
-      send(packet) {
-        const result = reverseLink.transmit(packet);
-        if (result.dropped) {
-          addLog('drop', packet);
-          return;
-        }
-        for (const delay of result.delays) {
-          queue.push(clock + delay, () => onSenderAck(packet));
-        }
+      send(packet, reason = 'send') {
+        transmit(reverseLink, reverseConfig, packet, reason, 'ack-received', onSenderAck);
       },
       setTimer: schedule,
       cancelTimer: (h) => {

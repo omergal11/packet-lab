@@ -2,7 +2,7 @@ import type { LogEntry } from './packet.js';
 
 export interface Metrics {
   delivered: number; // unique packets that reached the application layer
-  totalTransmissions: number; // initial sends + retransmissions
+  totalTransmissions: number; // DATA sends + retransmissions (link duplicates are not counted)
   efficiency: number; // delivered / totalTransmissions  (0 when nothing was sent)
   totalVirtualTimeMs: number; // virtual clock value at the final delivery
 }
@@ -18,7 +18,10 @@ export function computeMetrics(log: readonly LogEntry[]): Metrics {
       delivered++;
       totalVirtualTimeMs = entry.time; // last delivery wins
     }
-    if (entry.kind === 'send' || entry.kind === 'retransmit') {
+    // Only count what the sender chose to put on the wire. ACKs are the receiver's cost,
+    // and link duplicates are the network's doing, so neither should hurt the score.
+    const senderTransmission = entry.kind === 'send' || entry.kind === 'retransmit';
+    if (senderTransmission && entry.packet.kind === 'DATA') {
       totalTransmissions++;
     }
   }

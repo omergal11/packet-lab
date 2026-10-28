@@ -113,3 +113,70 @@ describe('Simulation — metrics', () => {
     expect(metrics.totalVirtualTimeMs).toBeGreaterThan(0);
   });
 });
+
+describe('Simulation — event log format', () => {
+  const noisy = { lossRate: 0.3, duplicateRate: 0.3, jitterMs: 40 };
+
+  it('every wire event carries a wire id; protocol events do not', () => {
+    const wireKinds = [
+      'send',
+      'retransmit',
+      'link-duplicate',
+      'drop',
+      'data-received',
+      'ack-received',
+    ];
+    const { log } = runSAW(5, 8, noisy);
+    for (const e of log) {
+      expect(e.wireId !== undefined).toBe(wireKinds.includes(e.kind));
+    }
+  });
+
+  it('send and drop entries cover both DATA and ACK packets', () => {
+    const { log } = runSAW(5, 8, noisy);
+    const kindsFor = (k: string) =>
+      new Set(log.filter((e) => e.kind === k).map((e) => e.packet.kind));
+    expect(kindsFor('send')).toEqual(new Set(['DATA', 'ACK']));
+    expect(kindsFor('drop')).toEqual(new Set(['DATA', 'ACK']));
+    expect(kindsFor('deliver')).toEqual(new Set(['DATA']));
+  });
+
+  it('logs ack-received for every ACK copy that reaches the sender', () => {
+    const { log } = runSAW(1, 4);
+    const acks = log.filter((e) => e.kind === 'ack-received');
+    expect(acks.map((e) => e.packet.seq)).toEqual([0, 1, 2, 3]);
+    expect(acks.every((e) => e.packet.kind === 'ACK')).toBe(true);
+  });
+
+  it('every copy on the wire ends exactly once: received or dropped', () => {
+    const { log } = runSAW(9, 8, noisy, 2000); // long timeout: run ends after copies settle
+    const started = log.filter((e) => ['send', 'retransmit', 'link-duplicate'].includes(e.kind));
+    const ended = log.filter((e) => ['drop', 'data-received', 'ack-received'].includes(e.kind));
+    const endedIds = ended.map((e) => e.wireId);
+    expect(new Set(endedIds).size).toBe(endedIds.length); // no copy ends twice
+    for (const id of endedIds) expect(started.some((s) => s.wireId === id)).toBe(true);
+  });
+});
+
+describe('Simulation — link duplicates vs retransmissions', () => {
+  it('link-made copies are logged as link-duplicate, never as retransmit', () => {
+    // No loss and a long timeout: any second copy can only come from the link.
+    const { log, metrics } = runSAW(1, 4, { duplicateRate: 1 }, 5000);
+    expect(log.filter((e) => e.kind === 'retransmit')).toHaveLength(0);
+    // Every DATA and every ACK was duplicated by the link.
+    const dataDups = log.filter((e) => e.kind === 'link-duplicate' && e.packet.kind === 'DATA');
+    expect(dataDups).toHaveLength(4);
+    // Link duplicates are not the sender's fault, so they do not reduce efficiency.
+    expect(metrics.efficiency).toBeCloseTo(1.0);
+  });
+
+  it('a timeout is always followed by a retransmit of the same seq', () => {
+    const { log } = runSAW(3, 6, { lossRate: 0.4 });
+    log.forEach((e, i) => {
+      if (e.kind !== 'timeout') return;
+      const next = log[i + 1]!;
+      expect(next.kind).toBe('retransmit');
+      expect(next.packet.seq).toBe(e.packet.seq);
+    });
+  });
+});

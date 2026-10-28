@@ -34,9 +34,9 @@ const lines: string[] = [
 lines.push('--- Event Log ---');
 for (const entry of log) {
   const pkt = entry.packet;
-  const payload = pkt.payload !== undefined ? ` payload="${pkt.payload}"` : '';
+  const wire = entry.wireId !== undefined ? ` wire#${entry.wireId}` : '';
   lines.push(
-    `[${entry.time.toFixed(1).padStart(8)}ms]  ${entry.kind.padEnd(18)} seq=${pkt.seq}${payload}`,
+    `[${entry.time.toFixed(1).padStart(8)}ms]  ${entry.kind.padEnd(18)} ${pkt.kind.padEnd(4)} seq=${pkt.seq}${wire}`,
   );
 }
 

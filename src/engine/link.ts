@@ -8,6 +8,11 @@ export interface LinkConfig {
   reorderRate: number; // 0–1: probability of a large extra delay (causes out-of-order arrival)
 }
 
+// Where along the wire a lost packet disappears, as a fraction of its base delay.
+// The link decides the loss at send time, but the log records it mid-lane so the
+// replay can show the packet vanishing on the way instead of never leaving.
+export const LOSS_POINT = 0.5;
+
 export interface TransmitResult {
   dropped: boolean;
   // One entry per copy that will be delivered. Normally 1; 2 if duplicated; 0 if dropped.
