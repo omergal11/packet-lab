@@ -225,3 +225,13 @@ describe('Simulation — forward and reverse links', () => {
     expect(dropRate(log, 'ACK').rate).toBeGreaterThan(0.3);
   });
 });
+
+describe('Simulation — total time', () => {
+  it('runs until the last ACK reaches the sender, not just the last delivery', () => {
+    const { log, metrics } = runSAW(1, 3); // 100 ms each way, no jitter
+    const lastDeliver = log.filter((e) => e.kind === 'deliver').at(-1)!;
+    expect(lastDeliver.time).toBeCloseTo(500);
+    expect(metrics.totalVirtualTimeMs).toBeCloseTo(600);
+    expect(log.at(-1)!.kind).toBe('ack-received');
+  });
+});
