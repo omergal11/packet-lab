@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { findBaseline, runProtocol, runSelectiveRepeat, score } from '../src/engine/scoring.js';
-import { gridFor } from '../src/levels/level.js';
+import { gridFor, levelBaseline } from '../src/levels/level.js';
+import { level2 } from '../src/levels/level2.js';
 import { level1 } from '../src/levels/level1.js';
 import { expectReliableDelivery } from './helpers.js';
 
@@ -85,5 +86,30 @@ describe('runProtocol', () => {
       sr += runProtocol('selective-repeat', scenario, settings).metrics.totalTransmissions;
     }
     expect(gbn).toBeGreaterThan(sr * 1.2);
+  });
+});
+
+describe('Level 2', () => {
+  it('Go-Back-N wastes far more transmissions than Selective Repeat at the starting settings', () => {
+    const [gbn, sr] = level2.protocols.map((p) => runProtocol(p, level2.scenario, level2.initial));
+    expect(gbn!.protocol).toBe('go-back-n');
+    expect(gbn!.metrics.wastedArrivals).toBeGreaterThan(sr!.metrics.wastedArrivals * 3);
+    expect(gbn!.metrics.totalTransmissions).toBeGreaterThan(sr!.metrics.totalTransmissions * 2);
+  });
+
+  it('the level baseline is the best run of any protocol on the grid', () => {
+    const baseline = levelBaseline(level2);
+    for (const p of level2.protocols) {
+      expect(findBaseline(level2.scenario, gridFor(level2), p).score).toBeLessThanOrEqual(
+        baseline.score,
+      );
+    }
+  });
+
+  it('a small window helps Go-Back-N but hurts Selective Repeat', () => {
+    const at = (p: 'go-back-n' | 'selective-repeat', windowSize: number) =>
+      runProtocol(p, level2.scenario, { windowSize, timeoutMs: 600 }).score;
+    expect(at('go-back-n', 3)).toBeGreaterThan(at('go-back-n', 12));
+    expect(at('selective-repeat', 3)).toBeLessThan(at('selective-repeat', 12));
   });
 });
