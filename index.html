@@ -7,35 +7,42 @@
   </head>
   <body>
     <header class="page-header">
+      <nav id="level-nav" class="level-nav" aria-label="Levels"></nav>
       <h1 id="level-name">PacketLab</h1>
       <p id="level-goal" class="goal"></p>
       <p class="seed">
         Seed <strong id="seed"></strong> — the same seed and settings always replay the same run.
+        <span id="custom-link" class="custom-link"></span>
       </p>
     </header>
 
     <main>
-      <section class="panel" aria-label="Link view">
-        <svg
-          id="link-view"
-          viewBox="0 0 1000 250"
-          role="img"
-          aria-label="Packets travelling between sender and receiver"
-        ></svg>
+      <section class="panel intro" aria-label="About this level">
+        <p id="level-intro"></p>
       </section>
 
-      <section class="panel" aria-label="Packet states">
-        <svg
-          id="packet-strip"
-          viewBox="0 0 1000 110"
-          role="img"
-          aria-label="State of each sequence number"
-        ></svg>
+      <div id="protocol-panels"></div>
+
+      <section class="panel legend-panel" aria-label="Legend">
         <p class="legend">
-          <span class="chip chip-acked">✓</span> acked <span class="chip chip-in-flight">→</span> in
-          flight <span class="chip chip-lost">✕</span> lost (DATA or its ACK; waiting for timeout)
-          <span class="chip chip-not-sent">–</span> not sent yet
-          <span class="legend-note">Dashed packet = retransmission</span>
+          <span class="legend-item"><span class="chip chip-acked">✓</span> acked</span>
+          <span class="legend-item"><span class="chip chip-in-flight">→</span> in flight</span>
+          <span class="legend-item">
+            <span class="chip chip-lost">✕</span> lost (DATA or its ACK; waiting for timeout)
+          </span>
+          <span class="legend-item">
+            <span class="chip chip-discarded">⊘</span> discarded by the receiver
+          </span>
+          <span class="legend-item"><span class="chip chip-not-sent">–</span> not sent yet</span>
+        </p>
+        <p class="legend">
+          <span class="legend-item">
+            <span class="pkt-chip pkt-chip-retransmit">D3</span> dashed outline = retransmission
+          </span>
+          <span class="legend-item">
+            <span class="pkt-chip pkt-chip-wasted">D3</span> red outline + "wasted" = arrives but
+            the receiver cannot use it
+          </span>
         </p>
       </section>
 
@@ -69,36 +76,29 @@
       </section>
 
       <section class="panel metrics" aria-label="Results">
-        <dl class="stats">
-          <div>
-            <dt>Delivered</dt>
-            <dd id="m-delivered"></dd>
-          </div>
-          <div>
-            <dt>Virtual time</dt>
-            <dd id="m-time"></dd>
-          </div>
-          <div>
-            <dt>Efficiency</dt>
-            <dd id="m-efficiency"></dd>
-          </div>
-        </dl>
+        <p id="notice" class="notice" role="alert" hidden></p>
+        <div class="table-scroll">
+          <table class="results">
+            <thead>
+              <tr>
+                <th scope="col">Protocol</th>
+                <th scope="col">Delivered</th>
+                <th scope="col">Virtual time</th>
+                <th scope="col">Efficiency</th>
+                <th scope="col">Wasted arrivals</th>
+              </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+          </table>
+        </div>
         <div class="compare">
           <h2>
             Score <span class="hint">(packets per second × efficiency — higher is better)</span>
           </h2>
-          <div class="bar-row">
-            <span class="bar-label">You</span>
-            <div class="bar-track"><div id="bar-you" class="bar bar-you"></div></div>
-            <span id="score-you" class="bar-value"></span>
-          </div>
-          <div class="bar-row">
-            <span class="bar-label">Baseline</span>
-            <div class="bar-track"><div id="bar-baseline" class="bar bar-baseline"></div></div>
-            <span id="score-baseline" class="bar-value"></span>
-          </div>
-          <p id="verdict" class="verdict" aria-live="polite"></p>
+          <div id="bars"></div>
         </div>
+        <h2>What happened</h2>
+        <ul id="insights" class="insights" aria-live="polite"></ul>
       </section>
     </main>
 

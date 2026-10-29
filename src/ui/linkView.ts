@@ -38,7 +38,8 @@ function drawStatic(root: SVGSVGElement): void {
   svg(root, 'line', { class: 'lane', x1: LANE_START, y1: DATA_Y, x2: LANE_END, y2: DATA_Y });
   svg(root, 'line', { class: 'lane', x1: LANE_START, y1: ACK_Y, x2: LANE_END, y2: ACK_Y });
   svg(root, 'text', { class: 'lane-label', x: 500, y: DATA_Y - 30 }, 'DATA  →');
-  svg(root, 'text', { class: 'lane-label', x: 500, y: ACK_Y + 42 }, '←  ACK');
+  // Below the stagger rows and captions, so a lost ACK's label never covers it.
+  svg(root, 'text', { class: 'lane-label', x: 500, y: ACK_Y + 62 }, '←  ACK');
 }
 
 function drawPacket(layer: SVGGElement, view: FlightView, lostLingerMs: number): void {
@@ -56,6 +57,8 @@ function drawPacket(layer: SVGGElement, view: FlightView, lostLingerMs: number):
   const classes = ['pkt', isData ? 'pkt-data' : 'pkt-ack'];
   if (lost) classes.push('pkt-lost');
   if (flight.cause === 'retransmit') classes.push('pkt-retransmit');
+  // Known from the finished log: this copy will arrive but the receiver cannot use it.
+  if (flight.wasted && !lost) classes.push('pkt-wasted');
 
   const g = svg(layer, 'g', {
     class: classes.join(' '),
@@ -65,8 +68,12 @@ function drawPacket(layer: SVGGElement, view: FlightView, lostLingerMs: number):
   });
   svg(g, 'rect', { x: -PKT_W / 2, y: -PKT_H / 2, width: PKT_W, height: PKT_H, rx: 4 });
   svg(g, 'text', { class: 'pkt-text', y: 1 }, `${isData ? 'D' : 'A'}${flight.packet.seq}`);
-  if (lost) svg(g, 'text', { class: 'pkt-caption', y: PKT_H + 2 }, '✕ lost');
-  else if (flight.cause === 'link-duplicate') {
-    svg(g, 'text', { class: 'pkt-caption', y: PKT_H + 2 }, 'dup');
-  }
+  const caption = lost
+    ? '✕ lost'
+    : flight.wasted
+      ? 'wasted'
+      : flight.cause === 'link-duplicate'
+        ? 'dup'
+        : null;
+  if (caption !== null) svg(g, 'text', { class: 'pkt-caption', y: PKT_H + 2 }, caption);
 }

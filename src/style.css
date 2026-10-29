@@ -53,8 +53,7 @@ h2 {
 }
 
 .seed,
-.hint,
-.legend-note {
+.hint {
   color: var(--muted);
   font-size: 0.85rem;
   font-weight: normal;
@@ -214,8 +213,12 @@ svg {
   gap: 4px 6px;
 }
 
-.legend-note {
-  margin-left: 12px;
+/* Keeps each marker next to its label when the legend wraps on a narrow screen. */
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 12px;
 }
 
 .chip {
@@ -225,7 +228,7 @@ svg {
   text-align: center;
   border-radius: 3px;
   color: #ffffff;
-  margin-left: 8px;
+  flex-shrink: 0;
 }
 
 .chip-acked {
@@ -307,28 +310,9 @@ input:focus-visible {
 }
 
 /* ---------- Metrics ---------- */
-.stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-  margin: 0 0 16px;
-}
-
-.stats dt {
-  color: var(--muted);
-  font-size: 0.85rem;
-}
-
-.stats dd {
-  margin: 2px 0 0;
-  font-size: 1.15rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
 .bar-row {
   display: grid;
-  grid-template-columns: 80px 1fr 60px;
+  grid-template-columns: 140px 1fr 48px;
   align-items: center;
   gap: 12px;
   margin: 6px 0;
@@ -356,6 +340,130 @@ input:focus-visible {
   text-align: right;
 }
 
-.verdict {
-  margin: 8px 0 0;
+/* ---------- Session 3: levels, results table, insights ---------- */
+.level-nav {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.level-nav a {
+  color: var(--muted);
+  text-decoration: none;
+  padding-bottom: 2px;
+}
+
+.level-nav a[aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+  border-bottom: 2px solid var(--ink);
+}
+
+.custom-link {
+  display: block;
+  color: var(--ink);
+}
+
+.intro p {
+  margin: 0;
+  line-height: 1.5;
+}
+
+.panel h2 {
+  margin: 0 0 4px;
+}
+
+.live-count {
+  margin-left: 12px;
+  font-size: 0.85rem;
+  font-weight: normal;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.notice {
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--loss);
+  border-left-width: 4px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+/* Lets the table scroll sideways inside its panel on a narrow screen,
+   instead of pushing the whole page wider than the viewport. */
+.table-scroll {
+  overflow-x: auto;
+  margin-bottom: 16px;
+}
+
+.results {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.results th,
+.results td {
+  text-align: left;
+  padding: 6px 12px 6px 0;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.results th {
+  color: var(--muted);
+  font-weight: normal;
+  font-size: 0.85rem;
+}
+
+.insights {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.5;
+}
+
+.insights li + li {
+  margin-top: 6px;
+}
+
+.compare .hint {
+  margin: 4px 0 16px;
+}
+
+.pkt-wasted rect {
+  fill: #fbe3dc;
+  stroke: var(--loss);
+  stroke-width: 2.5;
+}
+
+.pkt-wasted .pkt-text {
+  fill: var(--ink);
+}
+
+.chip-discarded {
+  background: var(--discarded);
+}
+
+.pkt-chip {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 3px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.5em;
+  flex-shrink: 0;
+}
+
+.pkt-chip-retransmit {
+  background: var(--in-flight);
+  color: #ffffff;
+  outline: 2px dashed var(--ink);
+  outline-offset: 1px;
+}
+
+.pkt-chip-wasted {
+  background: #fbe3dc;
+  color: var(--ink);
+  border: 2px solid var(--loss);
 }
