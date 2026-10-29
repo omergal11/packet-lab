@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findBaseline, runSelectiveRepeat, score } from '../src/engine/scoring.js';
+import { findBaseline, runProtocol, runSelectiveRepeat, score } from '../src/engine/scoring.js';
 import { gridFor } from '../src/levels/level.js';
 import { level1 } from '../src/levels/level1.js';
 import { expectReliableDelivery } from './helpers.js';
@@ -62,5 +62,28 @@ describe('runSelectiveRepeat — unfinished runs', () => {
     const run = runSelectiveRepeat(scenario, { windowSize: 16, timeoutMs: 100 });
     expect(run.completed).toBe(false);
     expect(run.score).toBe(0);
+  });
+});
+
+describe('runProtocol', () => {
+  it('runs both protocols reliably on the same scenario', () => {
+    for (const protocol of ['selective-repeat', 'go-back-n'] as const) {
+      const run = runProtocol(protocol, level1.scenario, { windowSize: 8, timeoutMs: 600 });
+      expect(run.protocol).toBe(protocol);
+      expect(run.completed).toBe(true);
+      expectReliableDelivery(run.log, level1.scenario.numPackets);
+    }
+  });
+
+  it('Go-Back-N spends more transmissions than Selective Repeat on a lossy link', () => {
+    let gbn = 0;
+    let sr = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const scenario = { ...level1.scenario, seed };
+      const settings = { windowSize: 8, timeoutMs: 600 };
+      gbn += runProtocol('go-back-n', scenario, settings).metrics.totalTransmissions;
+      sr += runProtocol('selective-repeat', scenario, settings).metrics.totalTransmissions;
+    }
+    expect(gbn).toBeGreaterThan(sr * 1.2);
   });
 });

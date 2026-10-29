@@ -1,6 +1,6 @@
 import type { LinkConfig } from './link.js';
 import type { Metrics } from './metrics.js';
-import { SelectiveRepeatReceiver, SelectiveRepeatSender } from './protocols/slidingWindow.js';
+import { PROTOCOLS, type ProtocolId } from './protocols/registry.js';
 import { Simulation, type SimResult } from './simulation.js';
 
 // The fixed part of a challenge: same network, same seed, same amount of data.
@@ -17,20 +17,31 @@ export interface Settings {
 }
 
 export interface ScoredRun extends SimResult {
+  protocol: ProtocolId;
   settings: Settings;
   score: number;
 }
 
-export function runSelectiveRepeat(scenario: Scenario, settings: Settings): ScoredRun {
+export function runProtocol(
+  protocol: ProtocolId,
+  scenario: Scenario,
+  settings: Settings,
+): ScoredRun {
   const { numPackets } = scenario;
   const { windowSize, timeoutMs } = settings;
+  const info = PROTOCOLS[protocol];
   const sim = new Simulation({ seed: scenario.seed, linkConfig: scenario.linkConfig });
   const result = sim.run(
-    (ctx, onDone) => new SelectiveRepeatSender(ctx, { numPackets, windowSize, timeoutMs }, onDone),
-    (ctx) => new SelectiveRepeatReceiver(ctx, windowSize),
+    (ctx, onDone) => info.createSender(ctx, { numPackets, windowSize, timeoutMs }, onDone),
+    (ctx) => info.createReceiver(ctx, windowSize),
   );
   // A run that hit the safety stop delivered nothing useful in the end: score 0.
-  return { ...result, settings, score: result.completed ? score(result.metrics) : 0 };
+  const finalScore = result.completed ? score(result.metrics) : 0;
+  return { ...result, protocol, settings, score: finalScore };
+}
+
+export function runSelectiveRepeat(scenario: Scenario, settings: Settings): ScoredRun {
+  return runProtocol('selective-repeat', scenario, settings);
 }
 
 // One number to rank runs: useful packets per virtual second, scaled by efficiency.
@@ -52,11 +63,15 @@ export interface Grid {
 // The baseline is the best score any setting on the grid achieves for this exact
 // scenario. Computing it (instead of hardcoding a number) keeps it correct when the
 // level's seed or link changes.
-export function findBaseline(scenario: Scenario, grid: Grid): ScoredRun {
+export function findBaseline(
+  scenario: Scenario,
+  grid: Grid,
+  protocol: ProtocolId = 'selective-repeat',
+): ScoredRun {
   let best: ScoredRun | null = null;
   for (const windowSize of grid.windowSizes) {
     for (const timeoutMs of grid.timeoutsMs) {
-      const run = runSelectiveRepeat(scenario, { windowSize, timeoutMs });
+      const run = runProtocol(protocol, scenario, { windowSize, timeoutMs });
       // Strictly greater: on a tie the first (smaller) setting wins. With per-packet
       // randomness ties are common — once a retransmission decides the finish time,
       // extra window slots change nothing — so the baseline reports the smallest
