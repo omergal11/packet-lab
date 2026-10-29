@@ -6,6 +6,7 @@ const MARKER: Record<SeqState, string> = {
   acked: '✓',
   'in-flight': '→',
   lost: '✕',
+  discarded: '⊘',
   'not-sent': '–',
 };
 

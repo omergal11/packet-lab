@@ -19,11 +19,15 @@ export interface Flight {
   // the run ended) this is an estimate based on how long other copies took.
   readonly endTime: number;
   readonly outcome: FlightOutcome;
+  // A DATA copy that arrived but was useless: the receiver already had it, or (Go-Back-N)
+  // threw it away because it came after a gap. Level 2 highlights these.
+  readonly wasted: boolean;
 }
 
 // The sender's view of each sequence number.
 //   lost: the DATA or its ACK was lost, nothing is on the wire, waiting for a timeout.
-export type SeqState = 'not-sent' | 'in-flight' | 'lost' | 'acked';
+//   discarded: the DATA arrived but the receiver threw it away (Go-Back-N after a gap).
+export type SeqState = 'not-sent' | 'in-flight' | 'lost' | 'discarded' | 'acked';
 
 export interface FlightView {
   readonly flight: Flight;
@@ -43,6 +47,8 @@ export interface TimelineOptions {
   numPackets: number;
   windowSize: number;
   lostLingerMs?: number; // how long a lost copy stays visible after it is lost
+  // Go-Back-N ACKs are cumulative: ACK n also confirms every seq below n.
+  cumulativeAcks?: boolean;
 }
 
 export class Timeline {
@@ -77,6 +83,15 @@ export class Timeline {
       }
       if (e.kind === 'deliver') this.deliverTimes.push(e.time);
     }
+
+    // With cumulative ACKs, seq s is acknowledged by the first ACK for s or anything above.
+    if (options.cumulativeAcks) {
+      for (let seq = n - 2; seq >= 0; seq--) {
+        const own = this.ackTime[seq];
+        const above = this.ackTime[seq + 1];
+        if (above !== undefined && (own === undefined || above < own)) this.ackTime[seq] = above;
+      }
+    }
   }
 
   // The first event strictly after t, for the "step" control. Returns endTime at the end.
@@ -87,12 +102,22 @@ export class Timeline {
   frameAt(t: number): Frame {
     const flights: FlightView[] = [];
     const seqOnWire = new Set<number>();
+    let highestAckOnWire = -1;
+    // For each seq, the copy (DATA or ACK) whose journey ended most recently.
+    const lastEnded = new Map<number, Flight>();
 
     for (const flight of this.flights) {
+      const { seq } = flight.packet;
+      if (flight.outcome !== 'unfinished' && flight.endTime <= t) {
+        const prev = lastEnded.get(seq);
+        if (prev === undefined || flight.endTime >= prev.endTime) lastEnded.set(seq, flight);
+      }
       const view = this.viewAt(flight, t);
       if (view === null) continue;
       flights.push(view);
-      if (view.lostForMs === null) seqOnWire.add(flight.packet.seq);
+      if (view.lostForMs !== null) continue;
+      seqOnWire.add(seq);
+      if (flight.packet.kind === 'ACK') highestAckOnWire = Math.max(highestAckOnWire, seq);
     }
 
     const seqStates: SeqState[] = [];
@@ -105,8 +130,10 @@ export class Timeline {
         continue;
       }
       windowBase = Math.min(windowBase, seq);
+      const coveredByAck = this.options.cumulativeAcks === true && seq <= highestAckOnWire;
       if (sent === undefined || sent > t) seqStates.push('not-sent');
-      else if (seqOnWire.has(seq)) seqStates.push('in-flight');
+      else if (seqOnWire.has(seq) || coveredByAck) seqStates.push('in-flight');
+      else if (lastEnded.get(seq)?.wasted) seqStates.push('discarded');
       else seqStates.push('lost');
     }
 
@@ -140,25 +167,29 @@ function buildFlights(log: readonly LogEntry[]): Flight[] {
   const flights: Flight[] = [];
   const durations: Record<Packet['kind'], number[]> = { DATA: [], ACK: [] };
 
-  for (const e of log) {
-    if (e.wireId === undefined) continue;
+  log.forEach((e, i) => {
+    if (e.wireId === undefined) return;
     if (e.kind === 'send' || e.kind === 'retransmit' || e.kind === 'link-duplicate') {
       open.set(e.wireId, { packet: e.packet, cause: e.kind, departTime: e.time });
-      continue;
+      return;
     }
     const start = open.get(e.wireId);
-    if (start === undefined) continue;
+    if (start === undefined) return;
     open.delete(e.wireId);
     const outcome: FlightOutcome = e.kind === 'drop' ? 'lost' : 'arrived';
     if (outcome === 'arrived') durations[start.packet.kind].push(e.time - start.departTime);
-    flights.push({ wireId: e.wireId, ...start, endTime: e.time, outcome });
-  }
+    // The receiver's verdict is logged right after the arrival it reacts to.
+    const verdict = e.kind === 'data-received' ? log[i + 1]?.kind : undefined;
+    const wasted = verdict === 'duplicate-dropped' || verdict === 'out-of-order-dropped';
+    flights.push({ wireId: e.wireId, ...start, endTime: e.time, outcome, wasted });
+  });
 
   // Copies still on the wire when the run stopped: estimate their trip from the others,
   // so they keep moving instead of freezing or vanishing.
   for (const [wireId, start] of open) {
     const estimate = average(durations[start.packet.kind]);
-    flights.push({ wireId, ...start, endTime: start.departTime + estimate, outcome: 'unfinished' });
+    const endTime = start.departTime + estimate;
+    flights.push({ wireId, ...start, endTime, outcome: 'unfinished', wasted: false });
   }
 
   return flights.sort((a, b) => a.departTime - b.departTime || a.wireId - b.wireId);

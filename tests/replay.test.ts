@@ -5,6 +5,7 @@ import {
   SelectiveRepeatSender,
 } from '../src/engine/protocols/slidingWindow.js';
 import { LOSS_POINT, type LinkConfig } from '../src/engine/link.js';
+import { GoBackNReceiver, GoBackNSender } from '../src/engine/protocols/goBackN.js';
 import { Timeline } from '../src/engine/replay.js';
 import type { LogEntry } from '../src/engine/packet.js';
 import { NOISY_LINK, linkConfig } from './helpers.js';
@@ -104,5 +105,45 @@ describe('Timeline — stepping', () => {
     }
     expect(visited).toEqual(distinct);
     expect(timeline.nextEventTime(timeline.endTime)).toBe(timeline.endTime);
+  });
+});
+
+describe('Timeline — Go-Back-N', () => {
+  function gbnTimeline(seed = 3) {
+    const numPackets = 16;
+    const windowSize = 8;
+    const { log } = new Simulation({ seed, linkConfig: linkConfig({ lossRate: 0.2 }) }).run(
+      (ctx, onDone) => new GoBackNSender(ctx, { numPackets, windowSize, timeoutMs: 600 }, onDone),
+      (ctx) => new GoBackNReceiver(ctx),
+    );
+    return { log, timeline: new Timeline(log, { numPackets, windowSize, cumulativeAcks: true }) };
+  }
+
+  it('marks DATA copies the receiver discarded as wasted', () => {
+    const { log, timeline } = gbnTimeline();
+    const discards = log.filter(
+      (e) => e.kind === 'out-of-order-dropped' || e.kind === 'duplicate-dropped',
+    ).length;
+    expect(discards).toBeGreaterThan(0);
+    expect(timeline.flights.filter((f) => f.wasted)).toHaveLength(discards);
+  });
+
+  it('shows a seq as discarded right after the receiver throws it away', () => {
+    const { log, timeline } = gbnTimeline();
+    // Unless a later ACK already covers it, the strip shows the throw-away.
+    expect(
+      log.some(
+        (e) =>
+          e.kind === 'out-of-order-dropped' &&
+          timeline.frameAt(e.time).seqStates[e.packet.seq] === 'discarded',
+      ),
+    ).toBe(true);
+  });
+
+  it('a cumulative ACK acknowledges every lower seq at once', () => {
+    const { timeline } = gbnTimeline();
+    const end = timeline.frameAt(timeline.endTime);
+    expect(end.seqStates.every((s) => s === 'acked')).toBe(true);
+    expect(end.windowBase).toBe(16);
   });
 });

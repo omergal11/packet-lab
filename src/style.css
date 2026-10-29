@@ -11,6 +11,7 @@
   --in-flight: #4b5563;
   --success: #1d6b57;
   --loss: #e4572e;
+  --discarded: #7a828c; /* neutral: the packet arrived, but the receiver threw it away */
   font-family:
     system-ui,
     -apple-system,
@@ -176,6 +177,11 @@ svg {
 .cell-lost rect {
   fill: var(--loss);
   stroke: var(--loss);
+}
+
+.cell-discarded rect {
+  fill: var(--discarded);
+  stroke: var(--discarded);
 }
 
 .cell-not-sent rect {
