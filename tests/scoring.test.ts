@@ -16,9 +16,7 @@ describe('score', () => {
   });
 
   it('is 0 for an empty run', () => {
-    expect(
-      score({ delivered: 0, totalTransmissions: 0, efficiency: 0, totalVirtualTimeMs: 0 }),
-    ).toBe(0);
+    expect(score({ delivered: 0, efficiency: 0, totalVirtualTimeMs: 0 })).toBe(0);
   });
 });
 

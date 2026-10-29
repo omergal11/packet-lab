@@ -36,7 +36,9 @@ export function runSelectiveRepeat(scenario: Scenario, settings: Settings): Scor
 // One number to rank runs: useful packets per virtual second, scaled by efficiency.
 // Speed alone would reward flooding the link with retransmissions, and efficiency
 // alone would reward a huge timeout, so the score multiplies the two.
-export function score(metrics: Metrics): number {
+export function score(
+  metrics: Pick<Metrics, 'delivered' | 'efficiency' | 'totalVirtualTimeMs'>,
+): number {
   if (metrics.totalVirtualTimeMs === 0) return 0;
   const goodput = metrics.delivered / (metrics.totalVirtualTimeMs / 1000);
   return goodput * metrics.efficiency;
