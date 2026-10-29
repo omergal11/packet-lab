@@ -27,6 +27,21 @@ export default [
     },
   },
   {
+    // Node scripts (not part of the app). Listing the few globals they use avoids
+    // adding the `globals` package as a dependency.
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        setTimeout: 'readonly',
+        Buffer: 'readonly',
+        fetch: 'readonly',
+        WebSocket: 'readonly',
+      },
+    },
+  },
+  {
     ignores: ['dist/**', 'node_modules/**'],
   },
 ];
