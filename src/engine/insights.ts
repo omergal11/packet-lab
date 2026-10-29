@@ -7,8 +7,14 @@ import type { ScoredRun } from './scoring.js';
 
 // Fraction of the run the window must be full before we call it the main problem.
 const BLOCKED_THRESHOLD = 0.3;
-// A timeout this many times the slowest round trip counts as "too cautious".
+// A timeout this many times a slow round trip counts as "too cautious".
 const SLOW_TIMEOUT_FACTOR = 1.5;
+// Early timeouts are only "the" problem if they are a real share of all timeouts;
+// one unlucky reordered packet should not hide a bigger story.
+const EARLY_TIMEOUT_SHARE = 1 / 3;
+// "A slow round trip" is the 90th percentile, so rare reordered copies (held back on
+// purpose) do not make every sensible timeout look too short.
+const SLOW_PERCENTILE = 0.9;
 
 // Two or three sentences for one level. With several protocols, the first sentence
 // compares them and each protocol then gets its own diagnosis.
@@ -62,10 +68,10 @@ export function diagnosis(run: ScoredRun, numPackets: number): string {
     windowSize,
     cumulativeAcks: PROTOCOLS[run.protocol].cumulativeAcks,
   });
-  const maxRtt = slowestRoundTrip(timeline);
+  const slowRtt = slowRoundTrip(timeline);
   const early = prematureTimeouts(run, timeline);
 
-  if (early > 0) {
+  if (early >= 2 && early >= run.metrics.timeouts * EARLY_TIMEOUT_SHARE) {
     const { timeouts } = run.metrics;
     const which =
       early < timeouts
@@ -76,7 +82,7 @@ export function diagnosis(run: ScoredRun, numPackets: number): string {
     return (
       `${which} fired while the packet or its ` +
       `ACK was still on the way. The timeout (${timeoutMs} ms) is shorter than a slow round trip ` +
-      `(up to about ${maxRtt} ms), so those retransmissions were wasted.`
+      `(about ${slowRtt} ms), so those retransmissions were wasted.`
     );
   }
   const wasted = run.metrics.wastedArrivals;
@@ -95,10 +101,10 @@ export function diagnosis(run: ScoredRun, numPackets: number): string {
       `had to wait for ACKs. A bigger window keeps the link busy.`
     );
   }
-  if (run.metrics.timeouts > 0 && timeoutMs > maxRtt * SLOW_TIMEOUT_FACTOR) {
+  if (run.metrics.timeouts > 0 && timeoutMs > slowRtt * SLOW_TIMEOUT_FACTOR) {
     return (
       `Every timeout was needed, but the sender waited ${timeoutMs} ms each time while a round ` +
-      `trip takes at most about ${maxRtt} ms. A shorter timeout recovers from losses sooner.`
+      `trip usually takes at most about ${slowRtt} ms. A shorter timeout recovers from losses sooner.`
     );
   }
   // No single cause stands out, so report the two numbers that matter and let the player judge.
@@ -190,15 +196,15 @@ function windowFullFraction(run: ScoredRun, numPackets: number): number {
   return total === 0 ? 0 : blockedMs / total;
 }
 
-function slowestRoundTrip(timeline: Timeline): number {
-  const slowest = (kind: 'DATA' | 'ACK'): number =>
-    Math.max(
-      0,
-      ...timeline.flights
-        .filter((f) => f.packet.kind === kind && f.outcome === 'arrived')
-        .map((f) => f.endTime - f.departTime),
-    );
-  return Math.round((slowest('DATA') + slowest('ACK')) / 10) * 10;
+function slowRoundTrip(timeline: Timeline): number {
+  const slow = (kind: 'DATA' | 'ACK'): number => {
+    const trips = timeline.flights
+      .filter((f) => f.packet.kind === kind && f.outcome === 'arrived')
+      .map((f) => f.endTime - f.departTime)
+      .sort((a, b) => a - b);
+    return trips.length === 0 ? 0 : trips[Math.floor((trips.length - 1) * SLOW_PERCENTILE)]!;
+  };
+  return Math.round((slow('DATA') + slow('ACK')) / 10) * 10;
 }
 
 function plural(n: number, noun: string): string {
